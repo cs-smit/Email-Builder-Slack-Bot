@@ -1,0 +1,70 @@
+# Builds one email per Slack message. Started by the Cloudflare Worker (repository_dispatch);
+# see docs/cloudflare-github-actions.md. The dispatch carries only an opaque event id: the
+# message itself is read from the Worker, so nothing about the design shows in these logs.
+name: Build email
+
+on:
+  repository_dispatch:
+    types: [email-builder]
+
+# One run at a time per Slack thread, so two changes never edit the same email at once.
+concurrency:
+  group: email-${{ github.event.client_payload.thread }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+      FIGMA_TOKEN: ${{ secrets.FIGMA_TOKEN }}
+      CLAUDE_CODE_OAUTH_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      WORKER_URL: ${{ secrets.WORKER_URL }}
+      RUNNER_SECRET: ${{ secrets.RUNNER_SECRET }}
+      LIBRARY_URL: ${{ secrets.LIBRARY_URL }}
+      LIBRARY_DIR: ${{ vars.LIBRARY_DIR }}
+      LIBRARY_MANIFEST: ${{ vars.LIBRARY_MANIFEST || 'gallery/templates.js' }}
+      BRAND_NAME: ${{ secrets.BRAND_NAME }}
+      REVIEW_ROUNDS: ${{ vars.REVIEW_ROUNDS || '1' }}
+      BROWSER_CHANNEL: chrome
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install Python packages
+        run: pip install -r requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Browser for screenshots
+        run: |
+          if ! command -v google-chrome >/dev/null; then
+            python -m playwright install --with-deps chromium
+            echo "BROWSER_CHANNEL=" >> "$GITHUB_ENV"
+          fi
+
+      - name: Restore the template library cache
+        uses: actions/cache@v4
+        with:
+          path: data/library
+          key: library-${{ github.run_id }}
+          restore-keys: library-
+
+      - name: Build
+        env:
+          EVENT_ID: ${{ github.event.client_payload.id }}
+        run: python -m emailbot.runner "$EVENT_ID"

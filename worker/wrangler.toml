@@ -1,0 +1,17 @@
+# Cloudflare Worker for Email Builder. See docs/cloudflare-github-actions.md.
+name = "email-builder"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+
+# Created with: npx wrangler kv namespace create BOT_KV   (paste the id it prints)
+[[kv_namespaces]]
+binding = "BOT_KV"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+
+[vars]
+# The GitHub repo whose Actions workflow builds the emails, as "owner/name".
+GITHUB_REPO = "REPLACE_WITH_OWNER/REPO"
+GITHUB_EVENT_TYPE = "email-builder"
+
+# Secrets (set with `npx wrangler secret put NAME`, never in this file):
+#   SLACK_SIGNING_SECRET, SLACK_BOT_TOKEN, GITHUB_TOKEN, RUNNER_SECRET

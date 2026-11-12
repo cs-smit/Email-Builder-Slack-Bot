@@ -1,0 +1,36 @@
+# For the Cloudflare Worker + GitHub Actions setup (docs/cloudflare-github-actions.md).
+# Replace YOUR-WORKER with your Worker's address (from `npx wrangler deploy`), then:
+# api.slack.com/apps → Create New App → From a manifest → paste this.
+display_information:
+  name: Email Builder
+  description: Builds HTML email templates from Figma designs
+features:
+  bot_user:
+    display_name: Email Builder
+    always_online: true
+  slash_commands:
+    - command: /email
+      url: https://YOUR-WORKER.workers.dev/slack/commands
+      description: Build an email template from a Figma frame
+      usage_hint: "<figma link> [notes]"
+      should_escape: false
+oauth_config:
+  scopes:
+    bot:
+      - channels:history
+      - groups:history
+      - im:history
+      - chat:write
+      - commands
+      - files:read
+      - files:write
+settings:
+  event_subscriptions:
+    request_url: https://YOUR-WORKER.workers.dev/slack/events
+    bot_events:
+      - message.channels
+      - message.groups
+      - message.im
+  interactivity:
+    is_enabled: false
+  socket_mode_enabled: false
