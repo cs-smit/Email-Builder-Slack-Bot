@@ -21,3 +21,6 @@ worker/.wrangler/
 .DS_Store
 .idea/
 .vscode/
+
+# Your own Worker settings (KV id, repo), kept out of git
+worker/wrangler.local.toml

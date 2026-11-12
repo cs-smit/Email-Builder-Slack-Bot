@@ -57,6 +57,12 @@ npx wrangler deploy
 It prints the Worker's address, like `https://email-builder.your-subdomain.workers.dev`. Opening
 it in a browser should say *Email Builder worker is running.*
 
+> **Tips.** Working in your own copy of this public repo? Keep your settings out of git by
+> copying `wrangler.toml` to `wrangler.local.toml` (git-ignored) and adding `-c wrangler.local.toml`
+> to the `wrangler` commands. To use your own domain (its DNS must be on the same Cloudflare
+> account), add under `compatibility_date`:
+> `routes = [{ pattern = "email-builder.example.com", custom_domain = true }]` and deploy again.
+
 ## 2. Create the Slack app
 
 1. Open `slack/manifest-cloudflare.yaml`, replace both `YOUR-WORKER.workers.dev` with your
