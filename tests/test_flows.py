@@ -40,3 +40,16 @@ def test_local_store_thread_map():
     store.set_thread("C1", "2.0", "job-1")
     assert store.get_thread("C1", "2.0") == "job-1"
     assert store.get_thread("C1", "3.0") is None
+
+
+def test_reply_on_unfinished_build_restarts_it(monkeypatch, tmp_path):
+    from emailbot import config, pipeline
+
+    job = pipeline.Job(id="job-unfinished", figma_url="upload", notes="")
+    job.save()  # no email.html: the first build stopped part-way
+    calls = []
+    monkeypatch.setattr(pipeline, "resume", lambda j, log=print: calls.append(j.id) or (_ for _ in ()).throw(RuntimeError("stop")))
+    slack = FakeSlack()
+    flows.Bot(slack, LocalStore(), inline=True).follow_up("C1", "1.0", "job-unfinished", "check now")
+    assert calls == ["job-unfinished"]
+    assert any("building this email again" in p for p in slack.posts)

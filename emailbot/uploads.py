@@ -70,7 +70,36 @@ def save_images(files: list[tuple[str, bytes]], img_dir: Path) -> list[dict]:
     return saved
 
 
-def prepare(files: list[tuple[str, bytes]], out_dir: Path) -> dict:
+def split_designs(files: list[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[tuple[str, bytes]]]:
+    """Separate whole-email designs from the images they use.
+
+    An email design is a tall picture at least ~500px wide (height >= 1.5 x width). With none of
+    those, the biggest picture is the design. Returns (designs, other images), designs in upload order.
+    """
+    files = expand(files)
+    designs, assets = [], []
+    for name, data in files:
+        try:
+            w, h = _size(data)
+        except Exception:
+            continue
+        (designs if w >= 500 and h >= 1.5 * w else assets).append((name, data))
+    if not designs and files:
+        biggest = max(files, key=lambda f: _area(f[1]))
+        designs = [biggest]
+        assets = [f for f in files if f is not biggest]
+    return designs, assets
+
+
+def _area(data: bytes) -> int:
+    try:
+        w, h = _size(data)
+        return w * h
+    except Exception:
+        return 0
+
+
+def prepare(files: list[tuple[str, bytes]], out_dir: Path, design_name: str | None = None) -> dict:
     """Write reference slices, images/ and a first design.md (no text yet) into out_dir."""
     files = expand(files)
     if not files:
@@ -85,9 +114,11 @@ def prepare(files: list[tuple[str, bytes]], out_dir: Path) -> dict:
         raise ValueError("Couldn't open any of the attached images.")
 
     # The design is the biggest picture; everything else is an asset.
+    # The design is the one named, else the biggest picture; everything else is an asset.
     sized.sort(key=lambda x: x[2] * x[3], reverse=True)
-    design_name, design_data, dw, dh = sized[0]
-    assets = [(n, d) for n, d, _, _ in sized[1:]]
+    pick = next((i for i, x in enumerate(sized) if design_name and x[0] == design_name), 0)
+    design_name, design_data, dw, dh = sized[pick]
+    assets = [(n, d) for i, (n, d, _, _) in enumerate(sized) if i != pick]
 
     # Exports are usually 1x (≈600-800px wide) or 2x (≈1200-1600px). Work out the scale.
     scale = 2 if dw >= 1100 else 1

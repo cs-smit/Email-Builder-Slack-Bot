@@ -172,10 +172,11 @@ def start(figma_url: str, notes: str = "", log=print, on_job=None) -> Result:
     return res
 
 
-def start_upload(files: list[tuple[str, bytes]], notes: str = "", log=print, on_job=None) -> Result:
+def start_upload(files: list[tuple[str, bytes]], notes: str = "", log=print, on_job=None,
+                 design_name: str | None = None) -> Result:
     """Same as start(), from files exported out of Figma by hand: [(file name, bytes)]."""
     job = _new_job("upload", notes, on_job)
-    design = uploads.prepare(files, job.dir)
+    design = uploads.prepare(files, job.dir, design_name=design_name)
     job.slug = _slug(design["name"])
     log(f"Using *{design['name']}* as the design ({design['width']}px wide) and "
         f"{len(design['assets'])} other image(s). Reading its text and styles…")
@@ -183,6 +184,24 @@ def start_upload(files: list[tuple[str, bytes]], notes: str = "", log=print, on_
     with open(job.dir / "design.md", "a") as f:
         f.write("\n\n## What the design shows (read from the pictures)\n\n" + text)
     return _match_and_build(job, text, notes, log)
+
+
+def resume(job: Job, notes: str = "", log=print) -> Result:
+    """Finish a job whose first build stopped part-way (e.g. Claude was signed out)."""
+    if not (job.dir / "reference.png").exists():
+        raise RuntimeError("This email's design never got saved. Start a new one.")
+    text_file = job.dir / "design_text.md"
+    if job.figma_url == "upload":
+        if not text_file.exists():
+            log("Reading the design's text and styles…")
+            text = generator.transcribe(job.dir)
+            with open(job.dir / "design.md", "a") as f:
+                f.write("\n\n## What the design shows (read from the pictures)\n\n" + text)
+        design_text = text_file.read_text()
+    else:
+        design_text = (job.dir / "design.md").read_text()
+    job.candidates = []
+    return _match_and_build(job, design_text, notes or job.notes, log)
 
 
 def add_images(job: Job, files: list[tuple[str, bytes]]) -> list[dict]:

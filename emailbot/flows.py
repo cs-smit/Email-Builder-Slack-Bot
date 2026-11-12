@@ -18,7 +18,7 @@ from pathlib import Path
 import httpx
 from slack_sdk import WebClient
 
-from . import config, figma, pipeline
+from . import config, figma, pipeline, uploads
 from .store import LocalStore
 
 log = logging.getLogger("emailbot")
@@ -198,8 +198,39 @@ class Bot:
         self.run(channel, ts, work)
 
     def start_upload(self, channel: str, ts: str, files: list[dict], notes: str):
-        self.run(channel, ts, lambda: self._build(channel, ts, lambda remember: pipeline.start_upload(
-            self.download(files), notes, log=lambda m: self.say(channel, ts, m), on_job=remember)))
+        """Exported designs: one email per design picture; every other picture is shared."""
+
+        def work():
+            downloaded = self.download(files)
+            designs, assets = uploads.split_designs(downloaded)
+            if not designs:
+                self.say(channel, ts, "I couldn't find an email design in those files. Attach the email "
+                                      "exported from Figma as PNG/JPG.")
+                return
+            if len(designs) == 1:
+                self._build(channel, ts, lambda remember: pipeline.start_upload(
+                    designs + assets, notes, log=lambda m: self.say(channel, ts, m), on_job=remember,
+                    design_name=designs[0][0]))
+                return
+            names = [Path(n).stem for n, _ in designs]
+            self.say(channel, ts, f"I found {len(designs)} email designs: "
+                                  + ", ".join(f"*{n}*" for n in names)
+                                  + f", and {len(assets)} other image(s) they can use. "
+                                  "I'll build each one in its own thread in this channel.")
+            for i, (design, name) in enumerate(zip(designs, names), 1):
+                msg = self.client.chat_postMessage(
+                    channel=channel,
+                    text=f"Email {i} of {len(designs)}: *{name}*" + (f"\n> {notes}" if notes else "")
+                         + "\nReplies with changes or the S3 link go in this thread.",
+                    unfurl_links=False,
+                )
+                self.store.set_thread(channel, msg["ts"], PENDING)
+                c, d = msg["ts"], design
+                self.run(channel, c, lambda c=c, d=d: self._build(channel, c, lambda remember: pipeline.start_upload(
+                    [d] + assets, notes, log=lambda m: self.say(channel, c, m), on_job=remember,
+                    design_name=d[0])))
+
+        self.run(channel, ts, work)
 
     def _build(self, channel: str, ts: str, make):
         job_ids = []
@@ -237,7 +268,12 @@ class Bot:
                 return
             job = pipeline.Job.load(job_id)
             try:
-                if wants_final:
+                if not (job.dir / "email.html").exists():
+                    # The first build stopped part-way; any reply finishes it.
+                    self.say(channel, ts, "The first build didn't finish, so I'm building this email again now.")
+                    res = pipeline.resume(job, log=lambda m: self.say(channel, ts, m))
+                    self.report_build(channel, ts, res, first=True)
+                elif wants_final:
                     self._finalize(channel, ts, job, hosted[0] if hosted else job.s3_url)
                 else:
                     self._revise(channel, ts, job, text, files)
