@@ -123,8 +123,9 @@ class Bot:
         job = res.job
         lines = []
         if first:
-            others = ", ".join(Path(c).name for c in job.candidates[1:3])
-            lines.append(f":white_check_mark: Email built from *{Path(job.base or job.candidates[0]).name}*"
+            base = Path(job.base or job.candidates[0]).name
+            others = ", ".join([Path(c).name for c in job.candidates if Path(c).name != base][:2])
+            lines.append(f":white_check_mark: Email built from *{base}*"
                          + (f" (other close matches: {others})." if others else "."))
         else:
             lines.append(":white_check_mark: Updated.")

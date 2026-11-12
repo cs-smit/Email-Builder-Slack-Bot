@@ -13,10 +13,10 @@ def png(w, h):
 
 def test_two_designs_and_their_images():
     files = [("LEADS.png", png(800, 3500)), ("hero.png", png(1280, 946)), ("MEMBERS.png", png(800, 2900)),
-             ("logo.png", png(300, 80))]
+             ("portrait.png", png(640, 972)), ("logo.png", png(300, 80))]
     designs, assets = uploads.split_designs(files)
     assert [n for n, _ in designs] == ["LEADS.png", "MEMBERS.png"]
-    assert [n for n, _ in assets] == ["hero.png", "logo.png"]
+    assert [n for n, _ in assets] == ["hero.png", "portrait.png", "logo.png"]  # a tall photo isn't an email
 
 
 def test_no_tall_design_falls_back_to_biggest():

@@ -73,7 +73,7 @@ def save_images(files: list[tuple[str, bytes]], img_dir: Path) -> list[dict]:
 def split_designs(files: list[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes]], list[tuple[str, bytes]]]:
     """Separate whole-email designs from the images they use.
 
-    An email design is a tall picture at least ~500px wide (height >= 1.5 x width). With none of
+    An email design is a long picture at least ~500px wide (height >= 2 x width). With none of
     those, the biggest picture is the design. Returns (designs, other images), designs in upload order.
     """
     files = expand(files)
@@ -83,7 +83,8 @@ def split_designs(files: list[tuple[str, bytes]]) -> tuple[list[tuple[str, bytes
             w, h = _size(data)
         except Exception:
             continue
-        (designs if w >= 500 and h >= 1.5 * w else assets).append((name, data))
+        # Whole emails are long: 3-4x taller than wide. Tall photos (portraits) are ~1.5x.
+        (designs if w >= 500 and h >= 2 * w else assets).append((name, data))
     if not designs and files:
         biggest = max(files, key=lambda f: _area(f[1]))
         designs = [biggest]
